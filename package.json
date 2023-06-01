@@ -210,7 +210,7 @@
     "@types/lazy-brush": "^1.0.0",
     "archiver": "5.3.1",
     "async.map": "0.5.2",
-    "classnames": "2.2.6",
+    "classnames": "2.3.2",
     "electron-dl": "3.5.0",
     "electron-fetch": "1.9.1",
     "electron-log": "4.4.8",
