@@ -43,6 +43,7 @@ import { AppMenu } from './app-menu';
 import { analytics } from './bi/analytics-handler';
 import { SDAEndReasonTypes, SDAUserSessionActionTypes } from './bi/interface';
 import { closeC9Pipe } from './c9-pipe-handler';
+import { terminateC9Shell } from './c9-shell-handler';
 import { handleChildWindow } from './child-window-handler';
 import {
   CloudConfigDataTypes,
@@ -252,6 +253,7 @@ export class WindowHandler {
       'enableRendererLogs',
       'enableBrowserLogin',
       'browserLoginAutoConnect',
+      'devToolsEnabled',
     ]);
     logger.info(
       `window-handler: main windows initialized with following config data`,
@@ -460,7 +462,6 @@ export class WindowHandler {
       windowHandler.switchClient(clientSwitchType);
     }, SHORTCUT_KEY_THROTTLE);
     this.mainWebContents.on('before-input-event', (event, input) => {
-      const { devToolsEnabled } = config.getConfigFields(['devToolsEnabled']);
       const windowsDevTools =
         input.control && input.shift && input.key.toLowerCase() === 'i';
       const macDevTools =
@@ -468,7 +469,10 @@ export class WindowHandler {
       if (input.control && input.shift && input.key.toLowerCase() === 'd') {
         event.preventDefault();
         throttledExportLogs();
-      } else if (devToolsEnabled && (windowsDevTools || macDevTools)) {
+      } else if (
+        this.config.devToolsEnabled &&
+        (windowsDevTools || macDevTools)
+      ) {
         event.preventDefault();
         this.mainWebContents?.toggleDevTools();
       }
@@ -2344,6 +2348,7 @@ export class WindowHandler {
     if (shouldRelaunch) {
       app.relaunch();
     }
+    await terminateC9Shell();
     app.exit();
   };
 
