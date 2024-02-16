@@ -14,7 +14,7 @@ interface IState {
   userConfig: object;
   globalConfig: object;
   cloudConfig: object;
-  finalConfig: object;
+  finalConfig: IConfig;
   appName: string;
   copyWrite?: string;
   clientVersion: string;
@@ -40,8 +40,6 @@ interface IState {
   updatedHostname?: string;
   isPodEditing: boolean;
   isValidHostname: boolean;
-  didUpdateHostname: boolean;
-  isEditMode?: boolean;
 }
 
 const ABOUT_SYMPHONY_NAMESPACE = 'AboutSymphony';
@@ -49,6 +47,7 @@ const SFE_CLIENT_TYPE_NAME = 'SFE-Lite';
 const KEY_CODE = {
   ENTER: 13,
   ESCAPE: 27,
+  SPACE: 32,
 };
 
 /**
@@ -73,7 +72,7 @@ export default class AboutApp extends React.Component<{}, IState> {
       userConfig: {},
       globalConfig: {},
       cloudConfig: {},
-      finalConfig: {},
+      finalConfig: {} as IConfig,
       appName: 'Symphony',
       versionLocalised: 'Version',
       clientVersion: '',
@@ -97,8 +96,6 @@ export default class AboutApp extends React.Component<{}, IState> {
       updatedHostname: '',
       isPodEditing: false,
       isValidHostname: true,
-      didUpdateHostname: false,
-      isEditMode: false,
     };
     this.updateState = this.updateState.bind(this);
   }
@@ -115,7 +112,6 @@ export default class AboutApp extends React.Component<{}, IState> {
       sdaVersion,
       sdaBuildNumber,
       client,
-      didUpdateHostname,
       isValidHostname,
     } = this.state;
 
@@ -148,10 +144,17 @@ export default class AboutApp extends React.Component<{}, IState> {
         value: `${formattedSfeVersion} ${client}`,
       },
     ];
-    const closeButtonText =
-      isValidHostname && didUpdateHostname
-        ? i18n.t('Save and Restart', ABOUT_SYMPHONY_NAMESPACE)()
-        : i18n.t('Close', ABOUT_SYMPHONY_NAMESPACE)();
+    const finalConfig = this.state.finalConfig?.url
+      ?.replace(/https:\/\//g, '')
+      ?.split('/')[0];
+    const updatedHostname = this.state.updatedHostname
+      ?.replace(/https:\/\//g, '')
+      ?.split('/')[0];
+    const isHostNamechanged =
+      finalConfig && updatedHostname && finalConfig !== updatedHostname;
+    const closeButtonText = isHostNamechanged
+      ? i18n.t('Save and Restart', ABOUT_SYMPHONY_NAMESPACE)()
+      : i18n.t('Close', ABOUT_SYMPHONY_NAMESPACE)();
     const cancelText = i18n.t('Cancel', ABOUT_SYMPHONY_NAMESPACE)();
 
     return (
@@ -192,34 +195,42 @@ export default class AboutApp extends React.Component<{}, IState> {
           <div className='AboutApp-close-container'>
             {this.state.isPodEditing && (
               <button
-                className='AboutApp-cancel-button'
-                onClick={this.eventHandlers.onCancel}
+                className={
+                  isHostNamechanged
+                    ? 'AboutApp-cancel-button-save-restart'
+                    : 'AboutApp-cancel-button'
+                }
+                onMouseDown={this.eventHandlers.onCancel}
                 title={cancelText}
                 data-testid={'CANCEL_BUTTON'}
+                onKeyDown={this.onCancelKeyDown}
               >
                 {cancelText}
               </button>
             )}
-            {this.state.isEditMode ? (
-              <button
-                className='AboutApp-save-button'
-                onClick={this.eventHandlers.onPodInputBlur}
-                title={i18n.t('Save', ABOUT_SYMPHONY_NAMESPACE)()}
-                data-testid={'SAVE_BUTTON'}
-              >
-                {i18n.t('Save', ABOUT_SYMPHONY_NAMESPACE)()}
-              </button>
-            ) : (
-              <button
-                className='AboutApp-close-button'
-                onClick={this.eventHandlers.onClose}
-                title={closeButtonText}
-                data-testid={'CLOSE_BUTTON'}
-                ref={this.closeButtonRef}
+            <button
+              className={
+                isHostNamechanged && isValidHostname
+                  ? 'AboutApp-button-save-restart'
+                  : !isValidHostname
+                  ? 'AboutApp-button-save-restart-disabled'
+                  : 'AboutApp-close-button'
+              }
+              onMouseDown={this.eventHandlers.onClose}
+              title={closeButtonText}
+              data-testid={'CLOSE_BUTTON'}
+              ref={this.closeButtonRef}
+              disabled={!isValidHostname}
+              onKeyDown={this.onCloseKeyDown}
+            >
+              <span
+                className={classNames({
+                  'AboutApp-button-save-restart-text': isHostNamechanged,
+                })}
               >
                 {closeButtonText}
-              </button>
-            )}
+              </span>
+            </button>
           </div>
         </div>
         <div className='AboutApp-version-container'>
@@ -251,13 +262,12 @@ export default class AboutApp extends React.Component<{}, IState> {
    */
   public copy(): void {
     const { clientVersion, ...rest } = this.state;
-    const { isPodEditing, isValidHostname, didUpdateHostname, ...data } = {
+    const { isPodEditing, isValidHostname, ...data } = {
       ...{ sbeVersion: clientVersion },
       ...rest,
     };
     if (data) {
       delete data.updatedHostname;
-      delete data.isEditMode;
       ipcRenderer.send(apiName.symphonyApi, {
         cmd: apiCmds.aboutAppClipBoardData,
         clipboard: data,
@@ -270,9 +280,18 @@ export default class AboutApp extends React.Component<{}, IState> {
    * Close modal
    */
   public close(): void {
-    const { isValidHostname, didUpdateHostname, hostname } = this.state;
-    if (isValidHostname && didUpdateHostname) {
-      ipcRenderer.send('user-pod-updated', hostname);
+    const { isValidHostname } = this.state;
+    const finalConfig = this.state.finalConfig?.url
+      .replace(/https:\/\//g, '')
+      ?.split('/')[0];
+    const updatedHostname = this.state.updatedHostname
+      ?.replace(/https:\/\//g, '')
+      ?.split('/')[0];
+    const compareHostName =
+      finalConfig && updatedHostname && finalConfig !== updatedHostname;
+
+    if (isValidHostname && compareHostName) {
+      ipcRenderer.send('user-pod-updated', this.state.updatedHostname);
     }
     ipcRenderer.send('close-about-app');
   }
@@ -286,7 +305,6 @@ export default class AboutApp extends React.Component<{}, IState> {
       isPodEditing: false,
       isValidHostname: true,
       hostname: this.previousUrl,
-      isEditMode: false,
     });
   }
 
@@ -297,9 +315,6 @@ export default class AboutApp extends React.Component<{}, IState> {
     if (e.detail === 3) {
       this.setState({
         isPodEditing: !!(this.state.globalConfig as IConfig)?.isPodUrlEditable,
-        didUpdateHostname: !!(this.state.globalConfig as IConfig)
-          ?.isPodUrlEditable,
-        isEditMode: true,
       });
     }
   }
@@ -310,7 +325,10 @@ export default class AboutApp extends React.Component<{}, IState> {
    */
   public handlePodChange = (e) => {
     const { value } = e.target;
-    this.setState({ updatedHostname: value });
+    this.setState({
+      updatedHostname: value,
+      isValidHostname: HOSTNAME_REGEX.test(value || ''),
+    });
   };
 
   /**
@@ -319,6 +337,9 @@ export default class AboutApp extends React.Component<{}, IState> {
    */
   public onKeyDown = (e) => {
     if (e.keyCode === KEY_CODE.ENTER) {
+      if (!this.state.isValidHostname) {
+        return;
+      }
       const { value } = e.target;
       this.setState({ updatedHostname: value });
       this.handlePodInputBlur(e);
@@ -330,8 +351,26 @@ export default class AboutApp extends React.Component<{}, IState> {
         isPodEditing: false,
         isValidHostname: true,
         hostname: this.previousUrl,
-        isEditMode: false,
       });
+    }
+  };
+  /**
+   * Handles handle keydown on Close
+   * @param e
+   */
+  public onCloseKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.keyCode === KEY_CODE.ENTER || e.keyCode === KEY_CODE.SPACE) {
+      this.close();
+    }
+  };
+
+  /**
+   * Handles key down on Cancel
+   * @param e
+   */
+  public onCancelKeyDown = (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.keyCode === KEY_CODE.ENTER || e.keyCode === KEY_CODE.SPACE) {
+      this.cancel();
     }
   };
 
@@ -340,17 +379,18 @@ export default class AboutApp extends React.Component<{}, IState> {
    */
   public handlePodInputBlur = (_event) => {
     const { updatedHostname, hostname } = this.state;
+    if (!this.state.isValidHostname) {
+      return;
+    }
     if (!HOSTNAME_REGEX.test(updatedHostname || '')) {
       this.setState({
         isPodEditing: false,
         isValidHostname: false,
-        isEditMode: false,
       });
     } else {
       this.setState({
         isPodEditing: false,
         isValidHostname: true,
-        isEditMode: false,
         hostname: updatedHostname || hostname,
       });
     }
@@ -399,11 +439,13 @@ export default class AboutApp extends React.Component<{}, IState> {
         <strong className={'AboutApp-pod'}>{item.key}</strong>
         {isPodEditing ? (
           <input
+            data-testid={'POD_INFO_INPUT'}
             className={'AboutApp-pod-input'}
             type='text'
             value={updatedHostname}
             onKeyDown={this.onKeyDown}
             onChange={this.handlePodChange}
+            onBlur={this.handlePodInputBlur}
             autoFocus
           />
         ) : (
