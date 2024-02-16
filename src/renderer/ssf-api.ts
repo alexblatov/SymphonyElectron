@@ -66,6 +66,7 @@ export interface ILocalObject {
   c9MessageCallback?: (status: IShellStatus) => void;
   updateMyPresenceCallback?: (presence: EPresenceStatusCategory) => void;
   phoneNumberCallback?: (arg: string) => void;
+  writeImageToClipboard?: (blob: string) => void;
 }
 
 const local: ILocalObject = {
@@ -385,6 +386,17 @@ export class SSFApi {
   }
 
   /**
+   * Register Event to expose callback when Copy Image is clicked
+   *
+   * @param analyticsEventHandler
+   */
+  public registerWriteImageToClipboard(callback): void {
+    if (typeof callback === 'function') {
+      local.writeImageToClipboard = callback;
+    }
+  }
+
+  /**
    * Expose old screen snippet api to support backward compatibility
    *
    * @deprecated
@@ -512,12 +524,9 @@ export class SSFApi {
   }
 
   /**
-   * Shows a banner that informs user that the screen is being shared.
+   * Shows a banner that informs the user that the screen is being shared.
    *
-   * @param options object with following fields:
-   *    - stream https://developer.mozilla.org/en-US/docs/Web/API/MediaStream/MediaStream object.
-   *             The indicator automatically destroys itself when stream becomes inactive (see MediaStream.active).
-   *    - displayId id of the display that is being shared or that contains the shared app
+   * @param options
    * @param callback callback function that will be called to handle events.
    * Callback receives event object { type: string }. Types:
    *    - 'error' - error occured. Event object contains 'reason' field.
@@ -527,23 +536,17 @@ export class SSFApi {
     options: IScreenSharingIndicatorOptions,
     callback,
   ): void {
-    const { displayId, stream } = options;
+    const { displayId, streamId } = options;
 
-    if (!stream || !stream.active || stream.getVideoTracks().length !== 1) {
-      callback({ type: 'error', reason: 'bad stream' });
+    if (streamId && typeof streamId !== 'string') {
+      callback({ type: 'error', reason: 'bad streamId' });
       return;
     }
+
     if (displayId && typeof displayId !== 'string') {
       callback({ type: 'error', reason: 'bad displayId' });
       return;
     }
-
-    const destroy = () => {
-      throttledCloseScreenShareIndicator(stream.id);
-      stream.removeEventListener('inactive', destroy);
-    };
-
-    stream.addEventListener('inactive', destroy);
 
     if (typeof callback === 'function') {
       local.screenSharingIndicatorCallback = callback;
@@ -551,7 +554,7 @@ export class SSFApi {
         cmd: apiCmds.openScreenSharingIndicator,
         displayId,
         id: ++nextIndicatorId,
-        streamId: stream.id,
+        streamId,
       });
     }
   }
@@ -1030,6 +1033,15 @@ local.ipcRenderer.on(
   (_event: Event, arg: EPresenceStatusCategory) => {
     if (typeof local.updateMyPresenceCallback === 'function') {
       local.updateMyPresenceCallback(arg);
+    }
+  },
+);
+
+local.ipcRenderer.on(
+  'copy-to-clipboard',
+  async (_event: Event, arg: string) => {
+    if (typeof local.writeImageToClipboard === 'function') {
+      local.writeImageToClipboard(arg);
     }
   },
 );

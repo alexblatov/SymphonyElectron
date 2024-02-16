@@ -11,11 +11,11 @@ describe('about app', () => {
     userConfig: {},
     globalConfig: { isPodUrlEditable: true },
     cloudConfig: {},
-    finalConfig: {},
+    finalConfig: { url: 'abcxyz.symphony.com' },
     appName: 'Symphony',
     versionLocalised: 'Version',
     buildNumber: '4.x.x',
-    hostname: 'N/A',
+    hostname: 'abcxyz.symphony.com',
     sfeVersion: 'N/A',
     sfeClientType: '1.5',
     sdaVersion: '3.8.0',
@@ -34,7 +34,7 @@ describe('about app', () => {
   };
   const aboutDataMockState = {
     ...aboutDataMockClipboard,
-    updatedHostname: 'N/A',
+    updatedHostname: 'abcxyz.symphony.com',
   };
   const onLabelEvent = 'on';
   const ipcSendEvent = 'send';
@@ -153,7 +153,124 @@ describe('about app', () => {
     pod.simulate('click', { detail: 2 });
     pod.simulate('click', { detail: 3 });
     const podInput = wrapper.find('[data-testid="CANCEL_BUTTON"]');
-    podInput.simulate('click');
+    podInput.simulate('mousedown');
     expect(wrapper.find(`[data-testid="POD_INFO"]`).exists()).toEqual(true);
+  });
+
+  it('should shrink text if its save and close', () => {
+    const cloneAboutDataMock = {
+      ...aboutDataMockState,
+      finalConfig: { url: 'bcd.symphony.com' },
+    };
+
+    cloneAboutDataMock.globalConfig = { isPodUrlEditable: true };
+    cloneAboutDataMock.userConfig = { isPodUrlEditable: false };
+
+    const wrapper = shallow(React.createElement(AboutApp));
+    ipcRenderer.send('about-app-data', cloneAboutDataMock);
+    const pod = wrapper.find(`[data-testid="POD_INFO"]`);
+    pod.simulate('click', { detail: 1 });
+    pod.simulate('click', { detail: 2 });
+    pod.simulate('click', { detail: 3 });
+
+    const inputPod = wrapper.find(`[data-testid="POD_INFO_INPUT"]`);
+    inputPod.simulate('keydown', {
+      target: { value: 'pod.symphony.com' },
+      keyCode: 13,
+    });
+    expect(
+      wrapper
+        .find(`[data-testid="CLOSE_BUTTON"] span`)
+        .hasClass('AboutApp-button-save-restart-text'),
+    ).toBe(true);
+  });
+
+  it('should restore to global config url on cancelling after enter pressed', () => {
+    const cloneAboutDataMock = {
+      ...aboutDataMockState,
+      finalConfig: { url: 'bcd.symphony.com' },
+    };
+
+    cloneAboutDataMock.globalConfig = { isPodUrlEditable: true };
+    cloneAboutDataMock.userConfig = { isPodUrlEditable: false };
+
+    const wrapper = shallow(React.createElement(AboutApp));
+    ipcRenderer.send('about-app-data', cloneAboutDataMock);
+    const pod = wrapper.find(`[data-testid="POD_INFO"]`);
+    pod.simulate('click', { detail: 1 });
+    pod.simulate('click', { detail: 2 });
+    pod.simulate('click', { detail: 3 });
+
+    const inputPod = wrapper.find(`[data-testid="POD_INFO_INPUT"]`);
+    inputPod.simulate('change', {
+      target: { value: 'pod.symphony.com123' },
+    });
+    inputPod.simulate('keydown', {
+      target: { value: 'pod.symphony.com123' },
+      keyCode: 13,
+    });
+    wrapper.find(`[data-testid="CANCEL_BUTTON"]`).simulate('click');
+
+    expect(pod.text()).toBe('abcxyz.symphony.com');
+  });
+
+  it('should work with A11Y Cancel button', () => {
+    const cloneAboutDataMock = {
+      ...aboutDataMockState,
+      finalConfig: { url: 'bcd.symphony.com' },
+    };
+
+    cloneAboutDataMock.globalConfig = { isPodUrlEditable: true };
+    cloneAboutDataMock.userConfig = { isPodUrlEditable: false };
+
+    const wrapper = shallow(React.createElement(AboutApp));
+    ipcRenderer.send('about-app-data', cloneAboutDataMock);
+    const pod = wrapper.find(`[data-testid="POD_INFO"]`);
+    pod.simulate('click', { detail: 1 });
+    pod.simulate('click', { detail: 2 });
+    pod.simulate('click', { detail: 3 });
+
+    wrapper.find(`[data-testid="CANCEL_BUTTON"]`).simulate('keydown', {
+      target: { value: 'pod.symphony.com123' },
+      keyCode: 13,
+    });
+
+    expect(wrapper.find(`[data-testid="CANCEL_BUTTON"]`).exists()).toBe(false);
+  });
+
+  it('should work with A11Y Close button', () => {
+    const cloneAboutDataMock = {
+      ...aboutDataMockState,
+      finalConfig: { url: 'bcd.symphony.com' },
+    };
+
+    cloneAboutDataMock.globalConfig = { isPodUrlEditable: true };
+    cloneAboutDataMock.userConfig = { isPodUrlEditable: false };
+
+    const wrapper = shallow(React.createElement(AboutApp));
+    ipcRenderer.send('about-app-data', cloneAboutDataMock);
+    const pod = wrapper.find(`[data-testid="POD_INFO"]`);
+    pod.simulate('click', { detail: 1 });
+    pod.simulate('click', { detail: 2 });
+    pod.simulate('click', { detail: 3 });
+
+    const inputPod = wrapper.find(`[data-testid="POD_INFO_INPUT"]`);
+    inputPod.simulate('change', {
+      target: { value: 'pod.symphony.com' },
+    });
+    inputPod.simulate('keydown', {
+      target: { value: 'pod.symphony.com' },
+      keyCode: 13,
+    });
+
+    wrapper.find(`[data-testid="CLOSE_BUTTON"]`).simulate('keydown', {
+      keyCode: 13,
+    });
+
+    expect(ipcRenderer.send).toHaveBeenNthCalledWith(
+      12,
+      'user-pod-updated',
+      'pod.symphony.com',
+    );
   });
 });

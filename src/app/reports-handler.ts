@@ -1,4 +1,4 @@
-import * as archiver from 'archiver';
+import * as zip from 'adm-zip';
 import { app, BrowserWindow, dialog, shell, WebContents } from 'electron';
 import * as fs from 'fs';
 import * as path from 'path';
@@ -24,63 +24,41 @@ const generateArchiveForDirectory = (
   fileExtensions: string[],
   retrievedLogs: ILogs[],
 ): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    logger.info(`reports-handler: generating archive for directory ${source}`);
-    const output = fs.createWriteStream(destination);
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    const filesForCleanup: string[] = [];
-
-    output.on('close', () => {
-      for (const file of filesForCleanup) {
-        if (fs.existsSync(file)) {
-          fs.unlinkSync(file);
-        }
+  logger.info(`reports-handler: generating archive for directory ${source}`);
+  const archive = new zip();
+  const filesForCleanup: string[] = [];
+  const files = fs.readdirSync(source);
+  files
+    .filter((file) => fileExtensions.indexOf(path.extname(file)) !== -1)
+    .forEach((file) => {
+      switch (path.extname(file)) {
+        case '.log':
+          archive.addLocalFile(source + '/' + file, 'logs');
+          break;
+        case '.dmp':
+        case '.txt': // on Windows .txt files will be created as part of crash dump
+          archive.addLocalFile(source + '/' + file, 'crashes');
+          break;
+        default:
+          break;
       }
-      logger.info(`reports-handler: generated archive for directory ${source}`);
-      return resolve();
     });
 
-    archive.on('error', (err: Error) => {
-      for (const file of filesForCleanup) {
-        if (fs.existsSync(file)) {
-          fs.unlinkSync(file);
-        }
-      }
-      logger.error(
-        `reports-handler: error archiving directory for ${source} with error ${err}`,
-      );
-      return reject(err);
-    });
-
-    archive.pipe(output);
-
-    const files = fs.readdirSync(source);
-    files
-      .filter((file) => fileExtensions.indexOf(path.extname(file)) !== -1)
-      .forEach((file) => {
-        switch (path.extname(file)) {
-          case '.log':
-            archive.file(source + '/' + file, { name: 'logs/' + file });
-            break;
-          case '.dmp':
-          case '.txt': // on Windows .txt files will be created as part of crash dump
-            archive.file(source + '/' + file, { name: 'crashes/' + file });
-            break;
-          default:
-            break;
-        }
-      });
-
-    for (const logs of retrievedLogs) {
-      for (const logFile of logs.logFiles) {
-        const file = path.join(source, logFile.filename);
-        archive.file(file, { name: 'logs/' + logFile.filename });
-        filesForCleanup.push(file);
-      }
+  for (const logs of retrievedLogs) {
+    for (const logFile of logs.logFiles) {
+      const file = path.join(source, logFile.filename);
+      archive.addLocalFile(file, 'logs');
+      filesForCleanup.push(file);
     }
-
-    archive.finalize();
-  });
+  }
+  return archive
+    .writeZipPromise(destination)
+    .then(() => {
+      logger.info('reports-handler: successfully created archive');
+    })
+    .catch((error) => {
+      logger.error('reports-handler: error while archiving ', error);
+    });
 };
 
 let logWebContents: WebContents;

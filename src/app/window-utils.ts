@@ -1090,6 +1090,8 @@ export const updateFeaturesForCloudConfig = async (
     isAutoUpdateEnabled,
     autoUpdateCheckInterval,
     forceAutoUpdate,
+    betaAutoUpdateChannelEnabled,
+    latestAutoUpdateChannelEnabled,
   } = config.getConfigFields([
     'launchOnStartup',
     'alwaysOnTop',
@@ -1098,6 +1100,8 @@ export const updateFeaturesForCloudConfig = async (
     'isAutoUpdateEnabled',
     'autoUpdateCheckInterval',
     'forceAutoUpdate',
+    'betaAutoUpdateChannelEnabled',
+    'latestAutoUpdateChannelEnabled',
   ]) as IConfig;
 
   const mainWebContents = windowHandler.getMainWebContents();
@@ -1149,7 +1153,10 @@ export const updateFeaturesForCloudConfig = async (
 
   // SDA auto updater
   logger.info(`window-utils: initiate auto update?`, isAutoUpdateEnabled);
-  if (forceAutoUpdate || isAutoUpdateEnabled) {
+  if (
+    (forceAutoUpdate || isAutoUpdateEnabled) &&
+    (betaAutoUpdateChannelEnabled || latestAutoUpdateChannelEnabled)
+  ) {
     if (!autoUpdateIntervalId) {
       // randomised to avoid having all users getting SDA update at the same time
       autoUpdateIntervalId = setInterval(async () => {
@@ -1316,6 +1323,7 @@ export const loadBrowserViews = async (
       mainEvents.publish('enter-full-screen');
     });
     mainWindow?.on('leave-full-screen', () => {
+      logger.info('EVENT leave-full-screen!!');
       if (
         !titleBarView ||
         !viewExists(titleBarView) ||
@@ -1456,4 +1464,12 @@ export const hideFullscreenWindow = (window: BrowserWindow) => {
     }
   });
   window.setFullScreen(false);
+};
+
+export const isValidUrl = (text: string): false | URL => {
+  try {
+    return new URL(text);
+  } catch (err) {
+    return false;
+  }
 };

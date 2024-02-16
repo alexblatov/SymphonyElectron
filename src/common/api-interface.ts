@@ -14,6 +14,7 @@ export enum apiCmds {
   sendLogs = 'send-logs',
   addLogs = 'add-logs',
   registerAnalyticsHandler = 'register-analytics-handler',
+  registerWriteImageToClipboard = 'register-write-image-to-clipboard',
   registerActivityDetection = 'register-activity-detection',
   showNotificationSettings = 'show-notification-settings',
   sanitize = 'sanitize',
@@ -313,10 +314,12 @@ export enum NotificationActions {
  * Screen sharing Indicator
  */
 export interface IScreenSharingIndicatorOptions {
+  // id of the display that is being shared
   displayId: string;
+
   requestId: number;
+
   streamId: string;
-  stream?: MediaStream;
 }
 
 export interface IVersionInfo {

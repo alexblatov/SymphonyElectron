@@ -77,6 +77,7 @@ import {
   initSysTray,
   injectStyles,
   isSymphonyReachable,
+  isValidUrl,
   loadBrowserViews,
   monitorNetworkInterception,
   preventWindowNavigation,
@@ -130,8 +131,6 @@ export const IS_NODE_INTEGRATION_ENABLED: boolean = false;
 export const AUX_CLICK = 'Auxclick';
 // Timeout on restarting SDA in case it's stuck
 const LISTEN_TIMEOUT: number = 25 * 1000;
-
-const HOSTNAME_REGEX = /^[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/;
 export class WindowHandler {
   /**
    * Verifies if the url is valid and
@@ -643,6 +642,8 @@ export class WindowHandler {
 
     // workaround for https://perzoinc.atlassian.net/browse/SDA-4251
     this.mainWindow?.on('focus', () => {
+      const mainView = this.getMainView();
+      mainView?.webContents.focus();
       if (
         this.mainWindow &&
         windowExists(this.mainWindow) &&
@@ -1438,7 +1439,6 @@ export class WindowHandler {
     ) {
       opts.alwaysOnTop = true;
     }
-
     const areWindowsRestoredPostHide =
       (winStore.windowsRestored && this.hideOnCapture) || !this.hideOnCapture;
 
@@ -1511,6 +1511,8 @@ export class WindowHandler {
       logger.info(
         'window-handler: createSnippingToolWindow: Closing snipping window, attempting to delete temp snip image',
       );
+      ipcMain.removeAllListeners(ScreenShotAnnotation.CLOSE);
+      ipcMain.removeAllListeners(ScreenShotAnnotation.UPLOAD);
       ipcMain.removeAllListeners(ScreenShotAnnotation.COPY_TO_CLIPBOARD);
       ipcMain.removeAllListeners(ScreenShotAnnotation.SAVE_AS);
       this.snippingToolWindow?.close();
@@ -2191,14 +2193,14 @@ export class WindowHandler {
       );
       const userAgent = this.getUserAgent(this.mainWebContents);
       const urlFromConfig = config.getUserConfigFields(['url']);
-      const isValidUrl =
-        HOSTNAME_REGEX.test(urlFromConfig.url || '') ||
-        urlFromConfig.url.includes('https://local-dev.symphony.com');
+      const isPodUrlValid =
+        isValidUrl(urlFromConfig.url || '') ||
+        urlFromConfig.url?.includes('https://local-dev.symphony.com');
 
       await this.mainWebContents.loadURL(
         this.cmdUrl
           ? this.cmdUrl
-          : isValidUrl
+          : isPodUrlValid
           ? urlFromConfig.url
           : this.globalConfig.url,
         {
@@ -2390,8 +2392,7 @@ export class WindowHandler {
           logger.info(
             `window-handler: Current main window url is ${webContentsUrl}.`,
           );
-          const reloadUrl =
-            webContentsUrl || this.userConfig.url || this.globalConfig.url;
+          const reloadUrl = this.userConfig.url || this.globalConfig.url;
           logger.info(`window-handler: Trying to reload ${reloadUrl}.`);
           const userAgent = this.getUserAgent(this.mainWebContents);
           await this.mainWebContents.loadURL(reloadUrl, { userAgent });
