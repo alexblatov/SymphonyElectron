@@ -1,7 +1,7 @@
-import { app, crashReporter } from 'electron';
+import { app, crashReporter, Menu, systemPreferences } from 'electron';
 import * as path from 'path';
 
-import { isDevEnv } from '../common/env';
+import { isDevEnv, isMac } from '../common/env';
 import { logger } from '../common/logger';
 import { getCommandLineArgs } from '../common/utils';
 import { appStats } from './stats';
@@ -24,9 +24,21 @@ app.enableSandbox();
 // https://www.electron.build/configuration/configuration#Configuration-squirrelWindows
 app.setAppUserModelId('com.symphony.electron-desktop');
 
+// This will prevent loading default menu and performance of application startup
+Menu.setApplicationMenu(null);
+
 // Set user data path before app ready event
 if (isDevEnv) {
   const devDataPath = path.join(app.getPath('appData'), 'Symphony-dev');
+  // dev related config settings should be set here
+  if (isMac) {
+    systemPreferences.setUserDefault('contextIsolation', 'boolean', true);
+    systemPreferences.setUserDefault(
+      'installVariant',
+      'string',
+      '1234-5678-910',
+    );
+  }
   logger.info(`init: Setting user data path to`, devDataPath);
   app.setPath('userData', devDataPath);
 }
