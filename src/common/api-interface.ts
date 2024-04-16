@@ -275,6 +275,8 @@ export interface INotificationData {
   hasIgnore?: boolean;
   hasReply?: boolean;
   hasMention?: boolean;
+  isFederatedEnabled?: boolean;
+  zoomFactor: number;
 }
 
 /**
@@ -299,6 +301,7 @@ export interface ICallNotificationData {
   shouldDisplayBadge: boolean;
   acceptButtonText: string;
   rejectButtonText: string;
+  zoomFactor: number;
 }
 
 export enum NotificationActions {
